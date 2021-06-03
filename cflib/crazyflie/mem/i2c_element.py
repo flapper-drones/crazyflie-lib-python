@@ -60,15 +60,31 @@ class I2CElement(MemoryElement):
                     elif self.elements['version'] == 1:
                         self.datav0 = data
                         self.mem_handler.read(self, 16, 5)
+                    elif self.elements['version'] == 2:
+                        [self.elements['servo_neutral_pitch'],
+                         self.elements['servo_neutral_yaw'],
+                         self.elements['motor_bias_roll']] = struct.unpack('<BBb',data[15:18])
+                        self.datav0 = data
+                        self.mem_handler.read(self, 19, 5)
                 else:
                     self.valid = False
                     if self._update_finished_cb:
                         self._update_finished_cb(self)
                         self._update_finished_cb = None
 
-            if addr == 16:
+            if (self.elements['version'] == 1 and addr == 16):
                 [radio_address_upper, radio_address_lower] = struct.unpack(
                     '<BI', self.datav0[15:16] + data[0:4])
+                self.elements['radio_address'] = int(
+                    radio_address_upper) << 32 | radio_address_lower
+
+                logger.debug(self.elements)
+                data = self.datav0 + data
+                done = True
+            
+            if (self.elements['version'] == 2 and addr == 19):
+                [radio_address_upper, radio_address_lower] = struct.unpack(
+                    '<BI', self.datav0[19:20] + data[0:4])
                 self.elements['radio_address'] = int(
                     radio_address_upper) << 32 | radio_address_lower
 
@@ -103,6 +119,15 @@ class I2CElement(MemoryElement):
                 self.elements['radio_address'] >> 32,
                 self.elements['radio_address'] & 0xFFFFFFFF)
             image += struct.pack('<BBBffBI', *data)
+        elif self.elements['version'] == 2:
+            data = (
+                0x02, self.elements['radio_channel'],
+                self.elements['radio_speed'],
+                self.elements['pitch_trim'], self.elements['roll_trim'],
+                self.elements['servo_neutral_pitch'], self.elements['servo_neutral_yaw'], self.elements['motor_bias_roll'],
+                self.elements['radio_address'] >> 32,
+                self.elements['radio_address'] & 0xFFFFFFFF)
+            image += struct.pack('<BBBffBBbBI', *data)
         # Adding some magic:
         image = EEPROM_TOKEN + image
         image += struct.pack('B', self._checksum256(image))
@@ -119,7 +144,7 @@ class I2CElement(MemoryElement):
             self.valid = False
             logger.debug('Updating content of memory {}'.format(self.id))
             # Start reading the header
-            self.mem_handler.read(self, 0, 16)
+            self.mem_handler.read(self, 0, 21)
 
     def write_done(self, mem, addr):
         if self._write_finished_cb and mem.id == self.id:
