@@ -31,6 +31,7 @@ import cflib.crtp  # noqa
 from cflib.crazyflie import Crazyflie
 from cflib.crazyflie.mem import MemoryElement
 from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
+from cflib.utils import uri_helper
 
 # Only output errors from the logging framework
 logging.basicConfig(level=logging.ERROR)
@@ -39,8 +40,9 @@ logging.basicConfig(level=logging.ERROR)
 class ReadMem:
     def __init__(self, uri):
         self._event = Event()
+        self._cf = Crazyflie(rw_cache='./cache')
 
-        with SyncCrazyflie(uri, cf=Crazyflie(rw_cache='./cache')) as scf:
+        with SyncCrazyflie(uri, cf=self._cf) as scf:
             mems = scf.cf.mem.get_mems(MemoryElement.TYPE_DECK_MEMORY)
 
             count = len(mems)
@@ -50,6 +52,9 @@ class ReadMem:
             mem = mems[0]
             mem.query_decks(self.query_complete_cb)
             self._event.wait()
+
+            if len(mem.deck_memories.items()) == 0:
+                print('No memories to read')
 
             for id, deck_mem in mem.deck_memories.items():
                 print('-----')
@@ -91,9 +96,9 @@ class ReadMem:
 
 if __name__ == '__main__':
     # URI to the Crazyflie to connect to
-    uri = 'radio://0/80'
+    uri = uri_helper.uri_from_env(default='radio://0/80/2M/E7E7E7E7E7')
 
     # Initialize the low-level drivers
     cflib.crtp.init_drivers()
 
-    ReadMem(uri)
+    rm = ReadMem(uri)
