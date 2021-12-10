@@ -25,11 +25,11 @@
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #  MA  02110-1301, USA.
 """
-Simple example that connects to one Flapper or CrazyFlie, sets the initial position/yaw
+Simple example that connects to one Flapper, sets the initial position/yaw
 and flies a trajectory.
 
-The initial pose (x, y, z, yaw) is configured in a number of variables and
-the trajectory is flown relative to this position, using the initial yaw.
+The initial pose (x, y, z, yaw) is configured as 'origin' and 'initial_yaw'
+The trajectory is defined with respect to the origin.
 """
 import math
 import sys
@@ -53,12 +53,7 @@ def key_capture_thread():
     input()
     kill_flight = True
 
-if (drone == 'Flapper'):
-    address = 'E7E7E7E7E7' # NimbleFlapper 2.0 Bolt
-elif (drone == 'CF'):
-    address = 'E7E7E7E7E7' # CF2.1
-else:
-    sys.exit()
+address = 'E7E7E7E7E7' # NimbleFlapper 2.0 Bolt
 
 # URI to the drone to connect to
 uri = 'radio://0/80/2M/' + address
@@ -87,18 +82,18 @@ CMD_YAW = []
 a = 1 #length of side
 h = 1 #height
 
+# Initial position
+origin = [0.0, 0.0, 0.0]
+
+initial_yaw = 0.0  # In degrees
+# 0: positive X direction
+# 90: positive Y direction
+# 180: negative X direction
+# 270: negative Y direction
+
+# Sequence relative to the origin!
 sequence = [
-    #square
-     #   (0, 0, h),
-     #   (0, a, h),
-     #   (1.5*a, a, h),
-     #   (1.5*a, -a, h),
-     #   (-1.5*a, -a, h),
-     #   (-1.5*a, 0, h),
-     #   (0, 0, h),
-     #   (0, 0, 0.5*h),
-     #   (0, 0, 0),
-    #hover
+    #hover & step forward
     (0, 0, 0.5*h),
     (0, 0, h),
     (a, 0, h),
@@ -108,17 +103,8 @@ sequence = [
     (0, 0, 0),
 ]
 
-origin = [0.05, 0, 0.22]
 
-if (drone == 'Flapper'):
-    # Setting for Nimble Flapper
-    hover_thrust = 40000
-
-elif (drone == 'CF'):
-    # Setting for CF2.1
-    hover_thrust = 35000
-
-
+yaw_radians = math.radians(initial_yaw)
 
 def wait_for_position_estimator(scf):
     print('Waiting for estimator to find position...')
@@ -164,64 +150,13 @@ def wait_for_position_estimator(scf):
 def set_control_parameters_Bolt(scf):
     print('Setting control parameters for Nimble Flapper Bolt')
 
-    scf.cf.param.set_value('attFilt.rateFiltEn', '1') #1
-    scf.cf.param.set_value('attFilt.omxFiltCut', '15') #12.5
-    scf.cf.param.set_value('attFilt.omyFiltCut', '25') #12.5
-    scf.cf.param.set_value('attFilt.omzFiltCut', '5.0') #5.0
+    # Example: 
+    # scf.cf.param.set_value('attFilt.rateFiltEn', '1') #1
 
-    scf.cf.param.set_value('attFilt.attFiltEn', '0') #0
-    scf.cf.param.set_value('attFilt.attFiltCut', '15.0') #15.0
-
-    # # Double loop in-body control
-    scf.cf.param.set_value('posCtlPid.singleLoop', '0')
-    scf.cf.param.set_value('posVelFilt.posFiltEn', '0')
-    scf.cf.param.set_value('posVelFilt.posFiltCut', '5.0')
-    scf.cf.param.set_value('posVelFilt.velFiltEn', '0')
-    scf.cf.param.set_value('posVelFilt.velFiltCut', '10.0')
-    scf.cf.param.set_value('posVelFilt.posZFiltEn', '0')
-    scf.cf.param.set_value('posVelFilt.posZFiltCut', '5.0')
-    scf.cf.param.set_value('posVelFilt.velZFiltEn', '1')
-    scf.cf.param.set_value('posVelFilt.velZFiltCut', '10.0')
-    scf.cf.param.set_value('posCtlPid.thrustBase', hover_thrust)
-    scf.cf.param.set_value('posCtlPid.thrustMin', '15000')
-    scf.cf.param.set_value('posCtlPid.xKp', '6.0') #4
-    scf.cf.param.set_value('posCtlPid.xKi', '0') #0
-    scf.cf.param.set_value('posCtlPid.xKd', '0.0') #0
-    scf.cf.param.set_value('posCtlPid.yKp', '2.5') #2.5
-    scf.cf.param.set_value('posCtlPid.yKi', '0.2') #0
-    scf.cf.param.set_value('posCtlPid.yKd', '0.0') #0
-    scf.cf.param.set_value('posCtlPid.zKp', '5.0')
-    scf.cf.param.set_value('posCtlPid.zKi', '0.5')
-    scf.cf.param.set_value('posCtlPid.zKd', '0.0')
-    scf.cf.param.set_value('posCtlPid.rLimit', '25.0')
-    scf.cf.param.set_value('posCtlPid.pLimit', '25.0')
-    scf.cf.param.set_value('velCtlPid.vxKFF', '0.0')
-    scf.cf.param.set_value('velCtlPid.vxKp', '4') #4   tested: 6
-    scf.cf.param.set_value('velCtlPid.vxKi', '0.5') #0.5 tested:0.8
-    scf.cf.param.set_value('velCtlPid.vxKd', '0.2') #0 tested: 0.2
-    scf.cf.param.set_value('velCtlPid.vyKFF', '0.0')
-    scf.cf.param.set_value('velCtlPid.vyKp', '4.0') #4 tested:5
-    scf.cf.param.set_value('velCtlPid.vyKi', '0.5') #0.5 tested: 0.9
-    scf.cf.param.set_value('velCtlPid.vyKd', '0.2') #0  tested: 0.2
-    scf.cf.param.set_value('velCtlPid.vzKp', '12.5')
-    scf.cf.param.set_value('velCtlPid.vzKi', '5.0')
-    scf.cf.param.set_value('velCtlPid.vzKd', '0.0')
-    scf.cf.param.set_value('posCtlPid.xBodyVelMax', '3.0')
-    scf.cf.param.set_value('posCtlPid.yBodyVelMax', '3.0')
-    scf.cf.param.set_value('posCtlPid.zVelMax', '3.0')
-
-def set_control_parameters_CF(scf):
-    print('Setting control parameters for Crazyflie')
-    scf.cf.param.set_value('posCtlPid.rpLimit', '30.0')
-    scf.cf.param.set_value('posCtlPid.xyVelMax', '3.0')
-    scf.cf.param.set_value('posCtlPid.zVelMax', '3.0')
-
-def set_initial_position(scf, x, y, z, yaw_deg):
+def set_initial_position(scf, x, y, z, yaw):
     scf.cf.param.set_value('kalman.initialX', x)
     scf.cf.param.set_value('kalman.initialY', y)
     scf.cf.param.set_value('kalman.initialZ', z)
-
-    yaw_radians = math.radians(yaw_deg)
     scf.cf.param.set_value('kalman.initialYaw', yaw_radians)
 
 
@@ -327,17 +262,6 @@ def activate_high_level_commander(cf):
 if __name__ == '__main__':
     cflib.crtp.init_drivers(enable_debug_driver=False)
 
-    # Set these to the position and yaw based on how your drone is placed
-    # on the floor
-    initial_x = 0.05
-    initial_y = 0
-    initial_z = 0.22
-    initial_yaw = 0  # In degrees
-    # 0: positive X direction
-    # 90: positive Y direction
-    # 180: negative X direction
-    # 270: negative Y direction
-
     # define logging parameters
 
     log_vbat = LogConfig(name='pm', period_in_ms=500)
@@ -402,14 +326,11 @@ if __name__ == '__main__':
 
             reset_tumble_detector(scf)
 
-            if (drone == 'Flapper'):
-                set_control_parameters_Bolt(scf)
-            elif (drone == 'CF'):
-                set_control_parameters_CF(scf)
-
+            set_control_parameters_Bolt(scf)
+            
             # reinitialize_controller(scf) # to load all new control parameters
 
-            set_initial_position(scf, initial_x, initial_y, initial_z, initial_yaw)
+            set_initial_position(scf, origin[0], origin[1], origin[2], yaw_radians)
             reset_estimator(scf)
 
             log_pos_estimate.start()
@@ -423,24 +344,24 @@ if __name__ == '__main__':
             time.sleep(0.2)
             commander = cf.high_level_commander
 
-            commander.takeoff(-0.5, 0.001) # setting the setpoint underground to spinup the motors before taking off
+            commander.takeoff(-0.5, 0.001) # setting the setpoint underground to spinup the motors before taking off //TODO improve the startup sequence using motor arming?
             time.sleep(0.01)
-            commander.go_to(origin[0], origin[1], origin[2]-0.5, 0.0, 0.01) # (re)set the setpoint, sometimes xy stays at [0,0]
+            commander.go_to(origin[0], origin[1], origin[2]-0.5, yaw_radians, 0.01) # (re)set the setpoint, sometimes xy stays at [0,0]
             time.sleep(0.2)
-            commander.go_to(origin[0], origin[1], origin[2], 0.0, 1.5)
+            commander.go_to(origin[0], origin[1], origin[2], yaw_radians, 1.5)
             time.sleep(0.2)
 
             for position in sequence:
                 print('Setting position {}'.format(position))
 
-                x = position[0] + initial_x
-                y = position[1] + initial_y
-                z = position[2] + initial_z
+                x = position[0] + origin[0]
+                y = position[1] + origin[1]
+                z = position[2] + origin[2]
 
-                commander.go_to(x, y, z, 0.0, 4)
+                commander.go_to(x, y, z, yaw_radians, 4)
                 time.sleep(4)
 
-            commander.land(initial_z - 0.5, 3.0)
+            commander.land(origin[2] - 0.5, 3.0, yaw_radians)
             time.sleep(3.0)
             commander.stop()
 
